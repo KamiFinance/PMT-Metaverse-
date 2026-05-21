@@ -1,0 +1,35 @@
+name: Initial Server Setup
+
+# Run this ONCE to set up a fresh GPU cloud server
+on:
+  workflow_dispatch:
+    inputs:
+      server_host:
+        description: "Server IP address"
+        required: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy setup script to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host:     ${{ github.event.inputs.server_host }}
+          username: ${{ secrets.SERVER_USER }}
+          key:      ${{ secrets.SERVER_SSH_KEY }}
+          source:   "scripts/server-setup.sh"
+          target:   "/tmp/"
+
+      - name: Run setup
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ github.event.inputs.server_host }}
+          username: ${{ secrets.SERVER_USER }}
+          key:      ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            chmod +x /tmp/scripts/server-setup.sh
+            sudo /tmp/scripts/server-setup.sh
+            echo "Server setup complete"

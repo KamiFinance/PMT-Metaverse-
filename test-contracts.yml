@@ -1,0 +1,27 @@
+name: Test Smart Contracts
+
+on:
+  push:
+    paths: [contracts/**]
+  pull_request:
+    paths: [contracts/**]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+
+      - name: Install
+        run: cd contracts && npm install
+
+      - name: Compile
+        run: cd contracts && npx hardhat compile
+
+      - name: Test
+        run: cd contracts && npx hardhat test
+
+      - name: Gas report
+        run: cd contracts && REPORT_GAS=true npx hardhat test

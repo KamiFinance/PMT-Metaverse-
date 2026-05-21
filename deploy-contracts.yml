@@ -1,0 +1,59 @@
+name: Deploy Smart Contracts
+
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        description: "Network to deploy to"
+        required: true
+        default: "pmtchain"
+        type: choice
+        options: [pmtchain, localhost]
+      confirm:
+        description: "Type DEPLOY to confirm mainnet deployment"
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'DEPLOY'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+
+      - name: Install dependencies
+        run: cd contracts && npm install
+
+      - name: Compile contracts
+        run: cd contracts && npx hardhat compile
+
+      - name: Deploy to ${{ github.event.inputs.network }}
+        env:
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          PMT_RPC_URL:          ${{ secrets.PMT_RPC_URL }}
+          PMT_CHAIN_ID:         ${{ secrets.PMT_CHAIN_ID }}
+        run: |
+          cd contracts
+          npx hardhat run scripts/deploy.js --network ${{ github.event.inputs.network }}
+
+      - name: Upload deployed addresses
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployed-addresses
+          path: contracts/deployed-addresses.json
+
+      - name: Update GitHub environment variables
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ADDRESSES=$(cat contracts/deployed-addresses.json)
+          LAND=$(echo $ADDRESSES | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['contracts']['PMTLand'])")
+          AVATAR=$(echo $ADDRESSES | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['contracts']['PMTAvatar'])")
+          MARKET=$(echo $ADDRESSES | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['contracts']['PMTMarketplace'])")
+          EVENTS=$(echo $ADDRESSES | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['contracts']['PMTEvents'])")
+          gh secret set PMT_LAND_ADDRESS        --body "$LAND"
+          gh secret set PMT_AVATAR_ADDRESS      --body "$AVATAR"
+          gh secret set PMT_MARKETPLACE_ADDRESS --body "$MARKET"
+          gh secret set PMT_EVENTS_ADDRESS      --body "$EVENTS"
+          echo "Contract addresses saved to GitHub Secrets"
